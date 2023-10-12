@@ -1,0 +1,369 @@
+-- Create database
+
+CREATE DATABASE walmartSales;
+
+
+-- Create table "sales"
+
+CREATE TABLE sale (
+    "invoice_id" VARCHAR(12) PRIMARY KEY,
+    "branch" CHAR(1) NOT NULL,
+    "city" VARCHAR(50) NOT NULL,
+    "customer_type" VARCHAR(10) NOT NULL,
+    "gender" VARCHAR(10) NOT NULL,
+    "product_line" VARCHAR(50) NOT NULL,
+    "unit_price" NUMERIC(10, 2) NOT NULL,
+    "quantity" INT NOT NULL,
+    "VAT" NUMERIC(10, 4) NOT NULL,
+    "total" NUMERIC(12, 4) NOT NULL,
+    "date" DATE NOT NULL,
+    "time" TIME NOT NULL,
+    "payment_method" VARCHAR(20) NOT NULL,
+    "cogs" NUMERIC(10, 2) NOT NULL,
+    "gross_margin_percentage" NUMERIC(10, 6) NOT NULL,
+    "gross_income" NUMERIC(12, 4) NOT NULL,
+    "rating" NUMERIC(3, 1) NOT NULL
+)
+
+
+--------------------- 1).Data cleaning ---------------------
+
+SELECT * FROM sales
+
+-- So here we get that our data do not need any cleaning here.
+
+
+
+--------------------- 2).Feature enginnering ---------------------
+
+-- A).Add the "time_of_day" column
+
+SELECT time,
+	(CASE
+		WHEN "time" BETWEEN '00:00:00' AND '12:00:00' THEN 'Morning'
+        WHEN "time" BETWEEN '12:01:00' AND '16:00:00' THEN 'Afternoon'
+        ELSE 'Evening'
+    END) AS "time_of_day"
+FROM sales
+
+
+-- insert new column "time_of_day" in sales
+
+ALTER TABLE sales 
+ADD COLUMN time_of_day VARCHAR(20);
+
+-- insert data into "time_of_day" 
+
+UPDATE sales
+SET time_of_day =
+(
+	CASE
+		WHEN "time" BETWEEN '00:00:00' AND '12:00:00' THEN 'Morning'
+        WHEN "time" BETWEEN '12:01:00' AND '16:00:00' THEN 'Afternoon'
+        ELSE 'Evening'
+    END)
+
+
+
+--B).Add "day_name" column
+
+SELECT	date, TO_CHAR("date",'Day')
+FROM sales;
+
+-- create new column "day_name" in sales
+
+ALTER TABLE sales 
+ADD COLUMN day_name VARCHAR(10);
+
+-- Insert data into column
+
+UPDATE sales
+SET day_name = TO_CHAR("date",'Day')
+
+
+
+--C).Add month_name column
+
+SELECT date, TO_CHAR("date",'Month') as "month_name"
+FROM sales
+
+-- create new column "month_name" in sales
+
+ALTER TABLE sales 
+ADD COLUMN "month_name" VARCHAR(10);
+
+-- insert data into table
+
+UPDATE sales
+SET month_name = TO_CHAR("date",'Month')
+
+
+
+------------------------------- Bussiness Question To Answer --------------------------
+
+--------------------------------- A).Generic Questions --------------------------------
+
+
+-- 1). How many unique cities does our data have
+
+select distinct city from sales
+
+
+
+-- 2). In which city is each branch
+
+select distinct city, branch from sales
+
+
+--------------------------------- B).Products Questions ---------------------------------
+
+
+--1).How many unique product line data have?
+
+select distinct product_line from sales
+
+
+
+--2).what is the most common payment method
+
+select payment_method from
+(select payment_method, count(payment_method) as "pm"
+from sales
+group by payment_method
+order by "pm" desc
+limit 1)a
+
+
+
+-- 3).what is the most product selling line
+
+select product_line from
+(select product_line, count(product_line) as "most_selling"
+from sales
+group by product_line 
+order by "most_selling" desc
+limit 1) a
+
+
+
+-- 4).What is the total revenue month by month
+
+select month_name , sum(total) as "Total_revenue"
+from sales
+group by month_name
+order by "Total_revenue" desc
+
+
+
+-- 5).Which month has largest COGS
+
+select month_name from
+(select month_name, sum(cogs) AS "total"
+from sales
+group by month_name
+order by "total" desc
+limit 1) a
+
+
+
+-- 6).What product_line had the largest revenue?
+
+select product_line from
+(select product_line , sum("total") as "Total_revenue"
+from sales
+group by product_line
+order by "Total_revenue" desc
+limit 1) a
+
+
+
+-- 7).Which city has largest revenue
+
+select city from 
+(select city, sum("total") as "total_revenue"
+from sales
+group by city
+order by "total_revenue" desc
+limit 1) a
+
+
+
+-- 8).What product line has largest VAT
+
+select product_line, round(avg("VAT"),2) as "Largest_VAT"
+from sales
+group by product_line
+order by "Largest_VAT" desc
+
+
+
+-- 9).Fetch each product line and add a column to those product line showing "Good","Bad". Good if its greater than average product sold
+
+select product_line,
+(case
+ 	when "quantity" > (select avg("quantity") from sales) then 'GOOD'
+    else 
+ 		'BAD'
+END) as "Review"
+FROM sales
+
+
+
+-- 10) Which branch sold product more than average product sold?
+
+select branch, sum(quantity)
+from sales
+group by branch
+having sum(quantity) > (Select avg(quantity) from sales)
+
+
+
+-- 11).What is the most common product line by gender
+
+select * from
+(select *, rank() over (partition by "gender" order by "count") as "rnk" from
+(select gender, product_line, count(product_line) as "count"
+from sales
+group by gender, product_line
+order by "count" desc) a) b
+where "rnk" = 1
+
+
+
+-- 12)What is the average rating of each product line
+
+select product_line, round(avg(rating),2) as "Avg Raing"
+from sales
+group by product_line
+order by "Avg Raing" desc
+
+
+
+-------------------------------C).Sales Questions ------------------------------
+
+
+-- 1).Number of sales made in each time of day per week day
+
+select "time_of_day", count(*) as "Total_count"
+from sales
+group by "time_of_day"
+order by "Total_count" desc
+
+
+
+-- 2).Which customer type bring the most revenue
+
+select customer_type, sum(total) as "Total_revenue"
+from sales
+group by customer_type
+order by "Total_revenue" desc
+limit 1
+
+
+
+-- 3).Which city has largest VAT(value added tax)
+
+select city, round(avg("VAT"),2) as "avg_vatt"
+from sales
+group by city
+order by "avg_vatt" desc
+
+
+
+-- 3).Which customer type pays most VAT(value added tax)
+
+select customer_type, avg("VAT") as "vat_perc"
+from sales
+group by customer_type
+order by "vat_perc" desc
+limit 1
+
+
+-------------------------------D).Customer Information Questions ------------------------------
+
+
+-- 1).How many unique customer type does the data have?
+
+select distinct customer_type from sales
+
+
+
+-- 2).How many unique payment method does the data have
+
+select distinct "payment_method" from sales
+
+
+
+-- 3).What is the most common customer type
+
+select customer_type, count(*) as "total_count"
+from sales
+group by customer_type
+order by "total_count" desc
+
+
+
+-- 4).What is the gender of most of the customer
+
+select gender, count(*) as "total"
+from sales
+group by gender
+
+
+
+-- 5)Which customer types buys the most
+
+select customer_type , count(invoice_id) as "total_count" 
+from sales
+group by customer_type
+order by "total_count" desc
+
+
+
+-- 6).What is the gender distribution per branch
+
+select gender, branch, count(*) as "Count"
+from sales 
+group by gender, branch
+order by "Count"
+
+
+
+-- 7).Which time of day do customer give most rating
+
+select time_of_day,  round(avg(rating),2) as "count"
+from sales
+group by time_of_day
+order by "count" desc
+
+
+
+-- 8).Which time of the day do customer give most rating in B branch
+
+select time_of_day,  round(avg(rating),2) as "count"
+from sales
+where "branch" = 'B'   
+group by time_of_day
+order by "count" desc
+
+
+
+-- 9).Which day for the week has best avg rating?
+
+select "day_name", round(avg(rating),2) as "avg_rating" 
+from sales
+group by "day_name"
+order by "avg_rating" desc
+
+
+
+-- 10).	Which day of the week has the best average rating per branch
+
+select "day_name", "branch" , round(avg(rating),2) as "avg_rating" 
+from sales
+group by "day_name", "branch"
+order by "avg_rating" desc
+
+
+select * from sales
+
